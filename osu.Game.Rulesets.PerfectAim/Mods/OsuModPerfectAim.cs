@@ -28,9 +28,10 @@ namespace osu.Game.Rulesets.PerfectAim.Mods
     /// A stricter relative of <see cref="OsuModRelax"/>. The player never clicks; instead a hit is
     /// only registered for a hit circle if the cursor is hovering it within the "Great" (300) timing
     /// window around the object's perfect hit time. Aiming the circle too early or too late results
-    /// in a miss, so the only possible circle judgements are 300 or miss. Sliders and spinners keep
-    /// relax-style auto-handling so maps remain completable; the aim-timing challenge is focused on
-    /// tappable circles.
+    /// in a miss, so the only possible circle judgements are 300 or miss. Slider heads are held to the
+    /// same standard: a head only registers if it is aimed within the "Great" window, so it too is
+    /// 300-or-miss. If the head's timing is missed the slider is never auto-tracked, so its ticks and
+    /// tail are forfeited along with the head — this is intended. Spinners remain auto-handled.
     /// </summary>
     public class OsuModPerfectAim : Mod, IUpdatableByPlayfield, IApplicableToDrawableRuleset<OsuHitObject>, IApplicableToPlayer, IHasNoTimedInputs
     {
@@ -134,11 +135,15 @@ namespace osu.Game.Rulesets.PerfectAim.Mods
                         break;
 
                     case DrawableSlider slider:
-                        // slider heads keep relax-style behaviour so that maps stay completable.
+                        // the slider head must be aimed at the perfect moment, exactly like a hit circle.
                         if (!slider.HeadCircle.IsHit)
-                            handleRelaxHitCircle(slider.HeadCircle);
-
-                        requiresHold |= slider.SliderInputManager.IsMouseInFollowArea(slider.Tracking.Value);
+                            handlePerfectHitCircle(slider.HeadCircle);
+                        // only auto-hold for body tracking once the head has been hit. holding earlier would press
+                        // the key while the cursor is over the head and register an early (non-strict) head hit,
+                        // defeating the strict timing. the head-tap press persists for AutoGenerator.KEY_UP_DELAY,
+                        // which bridges the one-frame gap until HeadCircle.IsHit becomes true and this hold takes over.
+                        else
+                            requiresHold |= slider.SliderInputManager.IsMouseInFollowArea(slider.Tracking.Value);
                         break;
 
                     case DrawableSpinner spinner:
@@ -174,15 +179,6 @@ namespace osu.Game.Rulesets.PerfectAim.Mods
                     return;
 
                 requiresHit = true;
-            }
-
-            void handleRelaxHitCircle(DrawableHitCircle circle)
-            {
-                if (!circle.HitArea.IsHovered)
-                    return;
-
-                Debug.Assert(circle.HitObject.HitWindows != null);
-                requiresHit |= circle.HitObject.HitWindows.CanBeHit(time - circle.HitObject.StartTime);
             }
 
             void changeState(bool down)
